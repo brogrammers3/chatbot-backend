@@ -17,8 +17,18 @@ async def chat(req: ChatRequest):
     # Buscar chunks relevantes
     chunks = await search_chunks(req.message, req.chatbot_id)
 
+    # Prompt de sistema configurado para este chatbot (si existe)
+    bot_result = (
+        supabase.table("chatbots")
+        .select("system_prompt")
+        .eq("id", req.chatbot_id)
+        .single()
+        .execute()
+    )
+    system_prompt = (bot_result.data or {}).get("system_prompt")
+
     # Generar respuesta
-    answer = await generate_answer(req.message, chunks)
+    answer = await generate_answer(req.message, chunks, system_prompt)
 
     # Guardar conversación y mensajes
     conv_result = (
