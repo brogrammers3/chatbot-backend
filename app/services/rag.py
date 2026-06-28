@@ -80,23 +80,33 @@ async def search_chunks(query: str, chatbot_id: str, k: int = 5) -> list[str]:
     return [row["content"] for row in result.data]
 
 
-async def generate_answer(query: str, context_chunks: list[str]) -> str:
+async def generate_answer(
+    query: str, context_chunks: list[str], system_prompt: str | None = None
+) -> str:
     if not context_chunks:
         return "No encontré información relevante en los documentos para responder tu pregunta."
 
     context = "\n\n".join(f"[{i+1}] {chunk}" for i, chunk in enumerate(context_chunks))
-    system_prompt = (
-        "Eres un asistente virtual empresarial. "
+
+    # Persona configurable por chatbot; si no hay, usa una por defecto.
+    persona = (
+        system_prompt.strip()
+        if system_prompt and system_prompt.strip()
+        else "Eres un asistente virtual empresarial."
+    )
+    # Reglas de grounding: siempre se aplican, sin importar la persona.
+    grounding = (
         "Responde usando únicamente la información del contexto proporcionado. "
         "Si la respuesta no está en el contexto, dilo claramente. "
         "Responde en el mismo idioma que la pregunta del usuario."
     )
+    system = f"{persona}\n\n{grounding}"
     user_prompt = f"Contexto:\n{context}\n\nPregunta: {query}"
 
     response = await openai_client.chat.completions.create(
         model=CHAT_MODEL,
         messages=[
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": system},
             {"role": "user", "content": user_prompt},
         ],
         temperature=0.2,
