@@ -48,12 +48,17 @@ async def ingest_document(pdf_bytes: bytes, filename: str, chatbot_id: str) -> d
             batch = chunks[i : i + batch_size]
             all_embeddings.extend(await embed_texts(batch))
 
-        # Insertar chunks con embeddings
+        # Insertar chunks con embeddings en batches para no exceder el
+        # statement_timeout de Postgres (error 57014 con inserts grandes).
         rows = [
             {"document_id": document_id, "content": chunk, "embedding": embedding}
             for chunk, embedding in zip(chunks, all_embeddings)
         ]
-        supabase.table("document_chunks").insert(rows).execute()
+        insert_batch_size = 100
+        for i in range(0, len(rows), insert_batch_size):
+            supabase.table("document_chunks").insert(
+                rows[i : i + insert_batch_size]
+            ).execute()
 
         supabase.table("documents").update({"status": "processed"}).eq(
             "id", document_id
